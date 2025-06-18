@@ -27,13 +27,54 @@ class handler(BaseHTTPRequestHandler):
             if not image_data:
                 raise ValueError("image_base64 is required")
             
+            # Validar formato base64
+            if not image_data.startswith('data:image'):
+                raise ValueError("Formato de imagem inválido. Use data:image/...")
+            
             # Decodificar base64 (remover prefixo data:image/...)
             if ',' in image_data:
-                image_data = image_data.split(',')[1]
+                mime_type = image_data.split(',')[0]
+                image_data_clean = image_data.split(',')[1]
+            else:
+                raise ValueError("Formato base64 inválido")
             
-            image_bytes = base64.b64decode(image_data)
+            # Validar base64
+            try:
+                image_bytes = base64.b64decode(image_data_clean)
+            except Exception as e:
+                raise ValueError(f"Erro ao decodificar base64: {str(e)}")
             
-            # Credenciais da API (pode usar env vars para segurança)
+            # Verificar se não está vazio
+            if len(image_bytes) == 0:
+                raise ValueError("Dados de imagem vazios")
+                
+            # Verificar tamanho mínimo (pelo menos 100 bytes)
+            if len(image_bytes) < 100:
+                raise ValueError("Arquivo muito pequeno, pode estar corrompido")
+            
+            # Verificar tamanho máximo da imagem (limite Sightengine: 5MB)
+            if len(image_bytes) > 5 * 1024 * 1024:
+                raise ValueError("Imagem muito grande. Máximo: 5MB")
+            
+            # Detectar formato da imagem e validar
+            if 'webp' in mime_type.lower():
+                filename = 'image.webp'
+                content_type = 'image/webp'
+                # WebP pode ter problemas, vamos logar
+                print(f"⚠️  WebP detected - may need conversion")
+            elif 'png' in mime_type.lower():
+                filename = 'image.png'
+                content_type = 'image/png'
+            elif 'jpeg' in mime_type.lower() or 'jpg' in mime_type.lower():
+                filename = 'image.jpg'
+                content_type = 'image/jpeg'
+            else:
+                # Fallback para JPEG
+                filename = 'image.jpg'
+                content_type = 'image/jpeg'
+                print(f"⚠️  Unknown format {mime_type}, using JPEG fallback")
+            
+            # Credenciais da API
             api_user = os.environ.get('SIGHTENGINE_API_USER', '977059260')
             api_secret = os.environ.get('SIGHTENGINE_API_SECRET', 'hcZbaLerB8gq8k9v7NBPyPXnKDTLdogt')
             
@@ -44,7 +85,10 @@ class handler(BaseHTTPRequestHandler):
                 'api_secret': api_secret
             }
             
-            files = {'media': ('image.jpg', io.BytesIO(image_bytes), 'image/jpeg')}
+            files = {'media': (filename, io.BytesIO(image_bytes), content_type)}
+            
+            print(f"Processing {filename} ({content_type}) - Size: {len(image_bytes)} bytes")
+            print(f"Calling Sightengine API...")
             
             response = requests.post(
                 'https://api.sightengine.com/1.0/check.json',
@@ -53,14 +97,27 @@ class handler(BaseHTTPRequestHandler):
                 timeout=30
             )
             
+            print(f"API Response Status: {response.status_code}")
+            print(f"API Response Headers: {response.headers}")
+            print(f"API Response Text: {response.text[:500]}...")
+            
             if response.status_code != 200:
                 raise Exception(f"Sightengine API HTTP {response.status_code}: {response.text}")
             
-            result = response.json()
+            # Verificar se a resposta é JSON válido
+            try:
+                result = response.json()
+            except json.JSONDecodeError as e:
+                raise Exception(f"API retornou resposta inválida (não JSON): {response.text[:200]}...")
             
             if result.get('status') != 'success':
                 error_msg = result.get('error', {}).get('message', 'Unknown API error')
-                raise Exception(f"API Error: {error_msg}")
+                error_code = result.get('error', {}).get('code', 'unknown')
+                raise Exception(f"API Error [{error_code}]: {error_msg}")
+            
+            # Verificar se o resultado tem o campo esperado
+            if 'type' not in result or 'ai_generated' not in result['type']:
+                raise Exception(f"API response missing expected fields: {result}")
             
             ai_score = result['type']['ai_generated']
             
@@ -78,15 +135,19 @@ class handler(BaseHTTPRequestHandler):
                 'detector_info': {
                     'accuracy': '98.3%',
                     'models_detected': ['Stable Diffusion', 'MidJourney', 'DALL-E', 'Adobe Firefly', 'Flux', 'GANs']
+                },
+                'debug_info': {
+                    'image_size_bytes': len(image_bytes),
+                    'api_status_code': response.status_code
                 }
             }
             
             self.wfile.write(json.dumps(response_data, ensure_ascii=False).encode('utf-8'))
             
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
             error_response = {
                 'success': False,
-                'error': 'Invalid JSON data',
+                'error': f'Invalid JSON in request: {str(e)}',
                 'message': 'Por favor, envie dados JSON válidos'
             }
             self.wfile.write(json.dumps(error_response).encode())
@@ -95,7 +156,23 @@ class handler(BaseHTTPRequestHandler):
             error_response = {
                 'success': False,
                 'error': str(e),
-                'message': 'Dados de imagem inválidos'
+                'message': 'Dados de imagem inválidos ou muito grandes'
+            }
+            self.wfile.write(json.dumps(error_response).encode())
+            
+        except requests.exceptions.Timeout:
+            error_response = {
+                'success': False,
+                'error': 'Request timeout',
+                'message': 'Timeout ao conectar com a API Sightengine (30s)'
+            }
+            self.wfile.write(json.dumps(error_response).encode())
+            
+        except requests.exceptions.ConnectionError:
+            error_response = {
+                'success': False,
+                'error': 'Connection error',
+                'message': 'Erro de conexão com a API Sightengine'
             }
             self.wfile.write(json.dumps(error_response).encode())
             
@@ -103,7 +180,7 @@ class handler(BaseHTTPRequestHandler):
             error_response = {
                 'success': False,
                 'error': f'Network error: {str(e)}',
-                'message': 'Erro de conexão com a API Sightengine'
+                'message': 'Erro de rede ao conectar com a API Sightengine'
             }
             self.wfile.write(json.dumps(error_response).encode())
             
