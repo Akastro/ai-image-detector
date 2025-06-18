@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detector de IA - Vercel</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .upload-section {
+            padding: 40px;
+            text-align: center;
+        }
+
+        .upload-area {
+            border: 3px dashed #ddd;
+            border-radius: 15px;
+            padding: 60px;
+            margin-bottom: 30px;
+            background: linear-gradient(45deg, #f8f9fa, #e9ecef);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .upload-area:hover {
+            border-color: #667eea;
+            background: linear-gradient(45deg, #e3f2fd, #f3e5f5);
+            transform: translateY(-2px);
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 25px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .preview-section {
+            padding: 20px 40px;
+            display: none;
+        }
+
+        .image-preview {
+            max-width: 100%;
+            max-height: 400px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            margin-bottom: 20px;
+        }
+
+        .result-card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin: 20px 0;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+            border-left: 5px solid #667eea;
+        }
+
+        .ai-detected {
+            border-left-color: #ff6b6b;
+            background: linear-gradient(135deg, #fff5f5, #ffe0e0);
+        }
+
+        .human-made {
+            border-left-color: #51cf66;
+            background: linear-gradient(135deg, #f0fff4, #e6ffed);
+        }
+
+        .result-label {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .confidence-bar {
+            background: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            height: 10px;
+            margin: 10px 0;
+        }
+
+        .confidence-fill {
+            height: 100%;
+            border-radius: 10px;
+            transition: width 0.5s ease;
+        }
+
+        .ai-confidence {
+            background: linear-gradient(90deg, #ff6b6b, #ee5a24);
+        }
+
+        .human-confidence {
+            background: linear-gradient(90deg, #51cf66, #40c057);
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .details {
+            margin-top: 20px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.7);
+            border-radius: 10px;
+            font-size: 14px;
+            text-align: left;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 Detector de IA</h1>
+            <p>Powered by Sightengine API + Vercel Serverless</p>
+        </div>
+
+        <div class="upload-section">
+            <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+                <div style="font-size: 4rem; color: #667eea; margin-bottom: 20px;">📸</div>
+                <div style="font-size: 1.3rem; color: #555; margin-bottom: 10px;">Clique aqui ou arraste uma imagem</div>
+                <div style="color: #888; font-size: 0.9rem;">Suporta JPG, PNG, WebP (máx. 10MB)</div>
+            </div>
+            <input type="file" id="fileInput" accept="image/*" style="display: none;">
+            <button class="btn" onclick="document.getElementById('fileInput').click()">
+                Selecionar Imagem
+            </button>
+        </div>
+
+        <div class="loading">
+            <div class="spinner"></div>
+            <p>Analisando imagem com Sightengine API...</p>
+        </div>
+
+        <div class="preview-section">
+            <img class="image-preview" id="imagePreview" alt="Preview">
+            <div class="result-card" id="resultCard">
+                <div class="result-label" id="resultLabel"></div>
+                <div class="confidence-bar">
+                    <div class="confidence-fill" id="confidenceFill"></div>
+                </div>
+                <p id="confidenceText"></p>
+                <div class="details" id="detailsSection"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const previewSection = document.querySelector('.preview-section');
+        const imagePreview = document.getElementById('imagePreview');
+        const loading = document.querySelector('.loading');
+        const resultCard = document.getElementById('resultCard');
+        const resultLabel = document.getElementById('resultLabel');
+        const confidenceFill = document.getElementById('confidenceFill');
+        const confidenceText = document.getElementById('confidenceText');
+        const detailsSection = document.getElementById('detailsSection');
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            if (!file.type.startsWith('image/')) {
+                alert('Por favor, selecione um arquivo de imagem válido.');
+                return;
+            }
+
+            if (file.size > 10 * 1024 * 1024) {
+                alert('Arquivo muito grande. Tamanho máximo: 10MB');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                imagePreview.src = e.target.result;
+                analyzeImage(file, e.target.result);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function analyzeImage(file, imageSrc) {
+            // Show loading
+            loading.style.display = 'block';
+            previewSection.style.display = 'none';
+
+            try {
+                // Converter imagem para base64
+                const base64Image = imageSrc;
+
+                // Chamar API Vercel
+                const response = await fetch('/api/detect-ai', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        image_base64: base64Image
+                    })
+                });
+
+                const result = await response.json();
+
+                // Hide loading and show results
+                loading.style.display = 'none';
+                previewSection.style.display = 'block';
+
+                if (result.success) {
+                    displayResults(result, file);
+                } else {
+                    displayError(result.error || 'Erro desconhecido', file);
+                }
+
+            } catch (error) {
+                loading.style.display = 'none';
+                previewSection.style.display = 'block';
+                displayError(error.message, file);
+            }
+        }
+
+        function displayResults(result, file) {
+            const { is_ai, confidence, score_percentage, label, request_id, operations_used } = result;
+            
+            // Update result card styling
+            resultCard.className = 'result-card ' + (is_ai ? 'ai-detected' : 'human-made');
+            
+            // Update label
+            const icon = is_ai ? '🤖' : '👨‍🎨';
+            const text = is_ai ? 'Imagem Gerada por IA' : 'Imagem Humana';
+            resultLabel.innerHTML = `${icon} ${text}`;
+            
+            // Update confidence bar
+            confidenceFill.className = 'confidence-fill ' + (is_ai ? 'ai-confidence' : 'human-confidence');
+            confidenceFill.style.width = `${score_percentage}%`;
+            confidenceText.textContent = `Confiança: ${score_percentage}%`;
+            
+            // Update details
+            detailsSection.innerHTML = `
+                <div class="alert alert-success">
+                    <strong>✅ Sucesso!</strong> Análise realizada pela API Sightengine via Vercel Serverless
+                </div>
+                
+                <h4>📊 Resultados:</h4>
+                <p><strong>🎯 Score IA:</strong> ${score_percentage}%</p>
+                <p><strong>🏷️ Classificação:</strong> ${label}</p>
+                <p><strong>📁 Arquivo:</strong> ${file.name}</p>
+                <p><strong>📏 Tamanho:</strong> ${formatFileSize(file.size)}</p>
+                <p><strong>🔍 Request ID:</strong> ${request_id}</p>
+                <p><strong>⚡ Operações usadas:</strong> ${operations_used}</p>
+                
+                <h4 style="margin-top: 20px;">🚀 Deploy na Vercel:</h4>
+                <p>Este exemplo está rodando em Vercel Serverless Functions com Python!</p>
+                <ul style="margin-left: 20px;">
+                    <li>✅ Backend Python serverless</li>
+                    <li>✅ Frontend estático</li>
+                    <li>✅ API Sightengine integrada</li>
+                    <li>✅ CORS configurado</li>
+                    <li>✅ Deploy automático</li>
+                </ul>
+            `;
+        }
+
+        function displayError(error, file) {
+            resultCard.className = 'result-card';
+            resultLabel.innerHTML = `❌ Erro na Análise`;
+            confidenceFill.style.width = '0%';
+            confidenceText.textContent = '';
+            
+            detailsSection.innerHTML = `
+                <div class="alert alert-error">
+                    <strong>❌ Erro:</strong> ${error}
+                </div>
+                
+                <h4>📋 Informações do Arquivo:</h4>
+                <p><strong>📁 Arquivo:</strong> ${file.name}</p>
+                <p><strong>📏 Tamanho:</strong> ${formatFileSize(file.size)}</p>
+                
+                <h4 style="margin-top: 20px;">🔧 Possíveis Soluções:</h4>
+                <ul style="margin-left: 20px;">
+                    <li>Verifique sua conexão com a internet</li>
+                    <li>Tente com uma imagem menor</li>
+                    <li>Verifique se o arquivo é uma imagem válida</li>
+                    <li>Tente novamente em alguns segundos</li>
+                </ul>
+            `;
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+    </script>
+</body>
+</html>
