@@ -1,19 +1,40 @@
 {
-    "functions": {
-      "api/detect-ai.py": {
-        "runtime": "python3.9"
-      }
+  "version": 2,
+  "name": "ai-image-detector",
+  "functions": {
+    "api/detect-ai.py": {
+      "runtime": "python3.9",
+      "maxDuration": 30
+    }
+  },
+  "routes": [
+    {
+      "src": "/",
+      "dest": "/public/index.html"
     },
-    "builds": [
-      {
-        "src": "api/detect-ai.py",
-        "use": "@vercel/python"
-      }
-    ],
-    "routes": [
-      {
-        "src": "/api/detect-ai",
-        "dest": "/api/detect-ai.py"
-      }
-    ]
-  }
+    {
+      "src": "/api/detect-ai",
+      "dest": "/api/detect-ai.py",
+      "methods": ["GET", "POST", "OPTIONS"]
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET, POST, OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "Content-Type"
+        }
+      ]
+    }
+  ]
+}
